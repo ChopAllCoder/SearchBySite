@@ -1,0 +1,31 @@
+# Bing的订阅
+BING_KEY=4a840dce1fc845aaa7214fb89b1c1053
+
+# 搜索时间范围，可以写一个时间，如2021-11-11，时间范围用两个点分割，或者用Day、Week、Month
+#BING_TIME=2000-01-01..2022-03-20
+
+# 页大小，每页查询多少数据
+PAGE_SIZE=10
+
+# 总共查询几页
+PAGE_NUM=1
+
+# 是否根据内容、标题、摘要过滤，是Y，否N
+SECOND_FILTER=N
+
+# 抓取范围 ，网页,新闻
+SPIDER_RANGE=网页
+
+# 语言(只能写一种语言)：中简、英语、法语、俄语、德语、韩语、日语
+LANG_NAME=中简
+
+# 最大超时时间
+MAX_TIMEOUT=10
+
+## 数据库连接配置
+# 数据库名称
+DB_NAME=search_tool
+# 数据库账号
+DB_USER=root
+# 数据库密码
+DB_PASSWORD=123456
