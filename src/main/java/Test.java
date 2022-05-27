@@ -26,7 +26,7 @@ public class Test {
         List<Topic> wangyeList;
 
             try {
-                wangyeList = bingWebSearch.search(false, website,input1);
+                wangyeList = bingWebSearch.search_oneSite(false, website,input1);
                 System.out.println("取回的内容条数是:"+wangyeList.size());
                 for (Topic topic : wangyeList) {
                     System.out.println("topic  : " +topic.getLink()+"|"+topic.getTitle()+"|"+topic.getContent());

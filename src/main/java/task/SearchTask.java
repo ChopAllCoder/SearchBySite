@@ -44,7 +44,7 @@ public class SearchTask implements Runnable {
             }*/
             String website = "www.baidu.com";
 //          调用Bing搜索，拿到搜索返回结果。
-            List<Topic> wangyeList = bingWebSearch.search(false, website,input);
+            List<Topic> wangyeList = bingWebSearch.search_oneSite(false, website,input);
             for (Topic topic : wangyeList) {
                 System.out.println("topic  : " +topic.getTitle()+"|"+topic.getContent()+"|"+topic.getLink());
                 /*topic.setKeyword(input.getName().trim());

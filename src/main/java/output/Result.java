@@ -71,7 +71,7 @@ public class Result<T> implements Serializable {
         return fail(ERROR,data);
     }
 
-    private static <T> Result<T> fail(String msg) {
+    public static <T> Result<T> fail(String msg) {
         return fail(ERROR.getCode(),msg,null);
     }
 

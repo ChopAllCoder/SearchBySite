@@ -8,7 +8,9 @@ import com.google.gson.JsonParser;
 import conf.Constant;
 import handler.*;
 import input.Input;
+import org.apache.commons.lang3.StringUtils;
 import util.HttpUtil;
+import util.StringUtil;
 
 import javax.net.ssl.HttpsURLConnection;
 import java.io.InputStream;
@@ -17,9 +19,7 @@ import java.net.URL;
 import java.net.URLEncoder;
 import java.text.SimpleDateFormat;
 import java.util.*;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.*;
 import java.util.stream.Collectors;
 
 /**
@@ -65,7 +65,7 @@ public class BingWebSearch_gaoji {
 //        System.out.println("url："+urlString);
         // Construct the URL.
         URL url = new URL(host + (isNews ? news_path : wangye_path) + urlString);
-//        System.out.println("构造好的URL为："+url);
+        System.out.println("构造好的URL为："+url);
 //        URL url = new URL("https://api.bing.microsoft.com/v7.0/news/search?q="+keywords);
 
         // Open the connection.
@@ -166,11 +166,13 @@ public class BingWebSearch_gaoji {
      * @return
      * @throws Exception
      */
-    public List<Topic> search(boolean isNews,String site, Input input) throws Exception {
+    public List<Topic> search_oneSite(boolean isNews,String site, Input input) throws Exception {
         ExecutorService executorService = Executors.newFixedThreadPool(10);
+//        ExecutorService executorService = Executors.newSingleThreadExecutor();
+        String langName = input.getLanguage();
+//        List<Future<Topic>> finalTopicList = new ArrayList<>();
+//        String site = StringUtils.join(siteArr," OR site:");  // 所有的定向网址进行组合
         List<Topic> topicList = new ArrayList<>();
-        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-//        System.out.println(sdf.format(new Date()) + ">>>============================= " );
         // Call the SearchWeb method and print the response.
         for (int i = 0; i < Constant.PAGE_NUM; i++) {
             int offset = i * Constant.PAGE_SIZE;
@@ -184,120 +186,282 @@ public class BingWebSearch_gaoji {
 //            String lan = input.getLanguage();  // 要返回的语言
 //            Constant.LANG_NAME = lan;
             String keywords = bookname + " "+ author + " "+ publication;// 用书名、作者、出版社构造搜索关键词
-
-            System.out.println(sdf.format(new Date()) + ">>>=====调用BING搜索["+site+"]开始的时间========== " );
+//            String keywords = input.getName();
             List<Topic> tempList = search(isNews, keywords, site, Constant.BING_TIME, Constant.PAGE_SIZE, offset);
-            System.out.println("BING搜索["+site+"]拿回来的搜索条数："+tempList.size());
-            CountDownLatch countDownLatch = new CountDownLatch(tempList.size());
-            System.out.println(sdf.format(new Date()) + ">>>=====调用BING搜索["+site+"]完成的时间========== " );
+//            List<Topic> tempList = search(isNews, langName, site,keywords, Constant.BING_TIME, Constant.PAGE_SIZE, offset);
+//            System.out.println(tempList.size());
+
+/*            for (Topic t:tempList) {
+                System.out.println(t.getLink());
+            }*/
+
+            CountDownLatch countDownLatch = new CountDownLatch(tempList.size()); //建立倒计时
 
             if (tempList == null || tempList.size() == 0) {
                 break;
             }
 
+            List<Future> finalTopicList = new ArrayList<>();  // 用做顺序处理
+
             for (Topic topic : tempList) {
-//                链接如果是个PDF文件,不进行处理，进入下一次循环
+//                Topic topic = futureTopic.get();
+//                System.out.println("[" + langName +"] 循环刚开始的顺序：Topic的URL："+topic.getLink());
                 if (topic.getLink().contains(".pdf") || topic.getLink().contains(".PDF")) {
                     continue;
                 }
-                List<Topic> finalTopicList = topicList;
-                executorService.submit(new Runnable() {
+                //拿到网页的内容。 这里应该有个先后顺序，也就是拿完网页内容后按照原有顺序再排列。
+//                List<Future<Topic>> finalTopicList = topicList;
+//                List<Future<Topic>> finalTopicList = new ArrayList<>();
+                Future<Topic> oneTopicresult= executorService.submit(new Callable<Topic>() {
                     @Override
-                    public void run() {
+                    public Topic call() {
                         try {
-                            System.out.println(Thread.currentThread().getName()+"||"+sdf.format(new Date()) + ">>>======爬取["+site+"]一个链接内容开始的时间======== " );
+//                            System.out.println(Thread.currentThread().getName()+"---"+topic.getUrl()+"开始");
                             String[] titleContentArr = HttpUtil.getHtmlContentText(topic.getLink());
-                            System.out.println(Thread.currentThread().getName()+"||"+sdf.format(new Date()) + ">>>======爬取["+site+"]一个链接内容完成的时间======== " );
+//                            System.out.println(Thread.currentThread().getName()+"---"+topic.getUrl()+"结束");
                             // 设置标题
                             topic.setSource(titleContentArr[0]);
                             topic.setTitle(titleContentArr[1]);
                             topic.setContent(titleContentArr[2]);
+                            topic.setLang(langName);
 
-//                            topic.setLang(topic.);
                             // 内容为空，过滤
                             if (null == topic.getContent() || "".equals(topic.getContent())) {
+//                            continue;
+                            }
 
-                            }else {
-                                // 时间处理
-                                if (topic.getCreateTime() != null) {
-                                    try {
-                                        topic.setCreateTime(topic.getCreateTime().substring(0, topic.getCreateTime().indexOf(".")).replace("T", " "));
-                                    } catch (Exception e) {
+                            // 时间处理
+                            if (topic.getCreateTime() != null) {
+                                try {
+                                    topic.setCreateTime(topic.getCreateTime().substring(0, topic.getCreateTime().indexOf(".")).replace("T", " "));
+                                } catch (Exception e) {
 
-                                    }
                                 }
-                                finalTopicList.add(topic);
-                                // 需要二次筛选.针对已经选定的各个语种的特定网页，筛选到最终的有信服力的书籍评论内容，写入到content中
-/*                                if ("Y".equals(Constant.SECOND_FILTER)) {
-                                    if (topic.getTitle() != null && topic.getTitle().toLowerCase().contains(keywords.toLowerCase())) {
-                                        topicList.add(topic);
-                                    } else if (topic.getSummary() != null && topic.getSummary().toLowerCase().contains(keywords.toLowerCase())) {
-                                        topicList.add(topic);
-                                    } else if (topic.getContent().toLowerCase().contains(keywords.toLowerCase())) {
-                                        topicList.add(topic);
-                                    }
-                                } else {
-                                    topicList.add(topic);
-                                }*/
                             }
 
                         } catch (UnsupportedEncodingException e) {
+//                            System.out.println("||||||");
                             e.printStackTrace();
                         }
                         countDownLatch.countDown();
+                        return topic;
                     }
                 });
-
+                finalTopicList.add(oneTopicresult);
             }
+
             countDownLatch.await();  // 等待
+            for (Future<Topic> finaltopic: finalTopicList) {  // 将顺序转换回来
+//                System.out.println(finaltopic.get().getLang()+"-多线程处理后输出+"+finaltopic.get().getLink());
+                topicList.add(finaltopic.get());
+            }
         }
         executorService.shutdown(); // 关闭线程池
 
-        List<Topic> resultList = new ArrayList<>();
-/*        String url = input.getUrl();
-        if (url != null && !"".equals(url)) {
-            for (Topic topic : topicList) {
-                if (topic.getUrl().contains(input.getUrl())) {
-                    resultList.add(topic);
-                }
-            }
-        }*/
 
-        if (resultList.size() != 0) {
-            return resultList;
-        }
-//        System.out.println("===强过滤：" + input.getName() + "===符合" + resultList.size() + "条");
+
+        List<Topic> resultList = new ArrayList<>();
+//        System.out.println("==============强过滤：[" + langName +"] "+input.getName() + "=================符合" + resultList.size() + "条");
 
         // 处理器
         HandlerService handlerService = null;
-        System.out.println(Constant.LANG_NAME);
-/*        if ("am".equals(Constant.LANG_NAME)) {
+        if ("中简".equals(langName)) {
             handlerService = new ZhHandler();
-        } else if ("en".equals(Constant.LANG_NAME)) {
+        } else if ("英语".equals(langName)) {
             handlerService = new EnHandler();
-        } else if ("ko".equals(Constant.LANG_NAME)) {
+        } else if ("法语".equals(langName)) {
             handlerService = new FrHandler();
-        } else if ("jp".equals(Constant.LANG_NAME)) {
+
+        } else if ("俄语".equals(langName)) {
             handlerService = new RuHandler();
-        } else if ("zh".equals(Constant.LANG_NAME)) {
+
+        } else if ("德语".equals(langName)) {
             handlerService = new GeHandler();
-        } else if ("韩语".equals(Constant.LANG_NAME)) {
+
+        } else if ("韩语".equals(langName)) {
             handlerService = new KrHandler();
-        } else if ("日语".equals(Constant.LANG_NAME)) {
+
+        } else if ("日语".equals(langName)) {
             handlerService = new JpHandler();
+
         }
         if (handlerService != null) {
             handlerService.handle(topicList);
-        }*/
-
-        topicList = topicList.stream().filter(p -> p != null && p.getContent() != null).collect(Collectors.toList());
-
-//        输出前三条
-        /*
-        if (topicList.size() > 3) {
-            topicList = topicList.subList(0, 3);
         }
-        */
-        return topicList;
+
+
+        // 把其他的也加上去。按指定集合的Iterator返回的顺序将指定集合中的所有元素追加到此列表的末尾。
+        resultList.addAll(topicList);
+
+        resultList = resultList.stream().filter(p -> p != null && p.getContent() != null && !"".equals(p.getContent())).collect(Collectors.toList());
+
+        // 根据URL去重。 这儿变成无序了
+//        resultList = resultList.stream().collect(collectingAndThen(toCollection(() -> new TreeSet<>(Comparator.comparing(Topic::getLink))), ArrayList::new));
+        ArrayList<Topic> finalResList = new ArrayList<>();
+        for (Topic topic : resultList) {
+            String urlTemp = topic.getLink();
+            boolean flag = true; //默认是不重复
+            for (Topic t:finalResList) {
+                if (urlTemp.equals(t.getLink())){
+                    flag = false;
+                    break;
+                }
+            }
+            if (flag){
+                finalResList.add(topic);
+            }
+        }
+
+        return resultList;
+    }
+
+
+    public List<Topic> search_sites(boolean isNews,ArrayList<String> siteArr, Input input) throws Exception {
+        ExecutorService executorService = Executors.newFixedThreadPool(10);
+//        ExecutorService executorService = Executors.newSingleThreadExecutor();
+        String langName = input.getLanguage();
+//        List<Future<Topic>> finalTopicList = new ArrayList<>();
+        String site = StringUtils.join(siteArr," OR site:");  // 所有的定向网址进行组合
+        List<Topic> topicList = new ArrayList<>();
+        // Call the SearchWeb method and print the response.
+        for (int i = 0; i < Constant.PAGE_NUM; i++) {
+            int offset = i * Constant.PAGE_SIZE;
+            String bookname = input.getBookname();
+            if (bookname.equals("/")){ bookname ="";}
+            String author = input.getAuthor();
+            if (author.equals("/")){ author ="";}
+            String publication = input.getPublication();
+            if (publication.equals("/")){ publication ="";}
+
+//            String lan = input.getLanguage();  // 要返回的语言
+//            Constant.LANG_NAME = lan;
+            String keywords = bookname + " "+ author + " "+ publication;// 用书名、作者、出版社构造搜索关键词
+//            String keywords = input.getName();
+            List<Topic> tempList = search(isNews, keywords, site, Constant.BING_TIME, Constant.PAGE_SIZE, offset);
+//            List<Topic> tempList = search(isNews, langName, site,keywords, Constant.BING_TIME, Constant.PAGE_SIZE, offset);
+//            System.out.println(tempList.size());
+
+/*            for (Topic t:tempList) {
+                System.out.println(t.getLink());
+            }*/
+
+            CountDownLatch countDownLatch = new CountDownLatch(tempList.size()); //建立倒计时
+
+            if (tempList == null || tempList.size() == 0) {
+                break;
+            }
+
+            List<Future> finalTopicList = new ArrayList<>();  // 用做顺序处理
+
+            for (Topic topic : tempList) {
+//                Topic topic = futureTopic.get();
+//                System.out.println("[" + langName +"] 循环刚开始的顺序：Topic的URL："+topic.getLink());
+                if (topic.getLink().contains(".pdf") || topic.getLink().contains(".PDF")) {
+                    continue;
+                }
+                //拿到网页的内容。 这里应该有个先后顺序，也就是拿完网页内容后按照原有顺序再排列。
+//                List<Future<Topic>> finalTopicList = topicList;
+//                List<Future<Topic>> finalTopicList = new ArrayList<>();
+                Future<Topic> oneTopicresult= executorService.submit(new Callable<Topic>() {
+                    @Override
+                    public Topic call() {
+                        try {
+//                            System.out.println(Thread.currentThread().getName()+"---"+topic.getUrl()+"开始");
+                            String[] titleContentArr = HttpUtil.getHtmlContentText(topic.getLink());
+//                            System.out.println(Thread.currentThread().getName()+"---"+topic.getUrl()+"结束");
+                            // 设置标题
+                            topic.setSource(titleContentArr[0]);
+                            topic.setTitle(titleContentArr[1]);
+                            topic.setContent(titleContentArr[2]);
+                            topic.setLang(langName);
+
+                            // 内容为空，过滤
+                            if (null == topic.getContent() || "".equals(topic.getContent())) {
+//                            continue;
+                            }
+
+                            // 时间处理
+                            if (topic.getCreateTime() != null) {
+                                try {
+                                    topic.setCreateTime(topic.getCreateTime().substring(0, topic.getCreateTime().indexOf(".")).replace("T", " "));
+                                } catch (Exception e) {
+
+                                }
+                            }
+
+                        } catch (UnsupportedEncodingException e) {
+//                            System.out.println("||||||");
+                            e.printStackTrace();
+                        }
+                        countDownLatch.countDown();
+                        return topic;
+                    }
+                });
+                finalTopicList.add(oneTopicresult);
+            }
+
+            countDownLatch.await();  // 等待
+            for (Future<Topic> finaltopic: finalTopicList) {  // 将顺序转换回来
+//                System.out.println(finaltopic.get().getLang()+"-多线程处理后输出+"+finaltopic.get().getLink());
+                topicList.add(finaltopic.get());
+            }
+        }
+        executorService.shutdown(); // 关闭线程池
+
+
+
+        List<Topic> resultList = new ArrayList<>();
+//        System.out.println("==============强过滤：[" + langName +"] "+input.getName() + "=================符合" + resultList.size() + "条");
+
+        // 处理器
+        HandlerService handlerService = null;
+        if ("中简".equals(langName)) {
+            handlerService = new ZhHandler();
+        } else if ("英语".equals(langName)) {
+            handlerService = new EnHandler();
+        } else if ("法语".equals(langName)) {
+            handlerService = new FrHandler();
+
+        } else if ("俄语".equals(langName)) {
+            handlerService = new RuHandler();
+
+        } else if ("德语".equals(langName)) {
+            handlerService = new GeHandler();
+
+        } else if ("韩语".equals(langName)) {
+            handlerService = new KrHandler();
+
+        } else if ("日语".equals(langName)) {
+            handlerService = new JpHandler();
+
+        }
+        if (handlerService != null) {
+            handlerService.handle(topicList);
+        }
+
+
+        // 把其他的也加上去。按指定集合的Iterator返回的顺序将指定集合中的所有元素追加到此列表的末尾。
+        resultList.addAll(topicList);
+
+        resultList = resultList.stream().filter(p -> p != null && p.getContent() != null && !"".equals(p.getContent())).collect(Collectors.toList());
+
+        // 根据URL去重。 这儿变成无序了
+//        resultList = resultList.stream().collect(collectingAndThen(toCollection(() -> new TreeSet<>(Comparator.comparing(Topic::getLink))), ArrayList::new));
+        ArrayList<Topic> finalResList = new ArrayList<>();
+        for (Topic topic : resultList) {
+            String urlTemp = topic.getLink();
+            boolean flag = true; //默认是不重复
+            for (Topic t:finalResList) {
+                if (urlTemp.equals(t.getLink())){
+                    flag = false;
+                    break;
+                }
+            }
+            if (flag){
+                finalResList.add(topic);
+            }
+        }
+
+        return resultList;
     }
 }

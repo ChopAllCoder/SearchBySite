@@ -38,6 +38,7 @@ public class Constant {
     public static Boolean SPIDER_NEWS = false;
 
     public static HashMap<String, ArrayList<String>> WEBSITE_MAP = new HashMap<>(); // 盛放website/ 下读入的定向检索网址
+    public static HashMap<String, ArrayList<String>> WEBSITE_MAP_SECOND = new HashMap<>(); // 盛放website/ 下读入的定向检索网址
     public static HashMap<String, String> BAIDU_LANG_CODE_MAP = new HashMap<>();
     public static HashMap<String, String> BING_MKT_CODE_MAP = new HashMap<>();
     public static HashMap<String, String> BING_SETLANG_CODE_MAP = new HashMap<>();

@@ -5,7 +5,7 @@ BING_KEY=4a840dce1fc845aaa7214fb89b1c1053
 #BING_TIME=2000-01-01..2022-03-20
 
 # 页大小，每页查询多少数据
-PAGE_SIZE=10
+PAGE_SIZE=1
 
 # 总共查询几页
 PAGE_NUM=1

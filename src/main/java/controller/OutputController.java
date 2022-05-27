@@ -45,48 +45,48 @@ public class OutputController {
 //        InputService inputService = new InputService();
         ExecutorService executorService = Executors.newFixedThreadPool(10);
         InitConfService initConfService = new InitConfService();
-        Result finalResult = null;
+        final Result[] finalResult = {null};
 //        String website = "https://www.cbsnews.com/";
 //        Input input1 = new Input("神聖幾何学マルセイユ タロット ミレニアムエディション入門書","ウィルフリード・ウドワン","サンジェルマン出版","日本","en");
 //        Input input1 = new Input("Where the Crawdads Sing","Delia Owens","G.P. Putnam's Sons","美国","en");
-        Input input = new Input(bookname,author,publication,"zhanweizhuanyong",lan);
+        Input input = new Input(bookname,author,publication,"-",lan);
         try {
 //          1. 把resources/website/下的所有的语言文件读入进来。
             System.out.println("开始读入初始化配置 ··· ");
             initConfService.initConf();
             System.out.println("初始化配置完成");
 
-/*          输出：ko  jp  en  am  zh
-            for (String t:Constant.WEBSITE_MAP.keySet()) {
-                System.out.println(t);
-            }
-*/
+//          输出：ko  jp  en  am  zh
+/*            for (String t:Constant.WEBSITE_MAP_SECOND.keySet()) {
+                System.out.println(t+"|"+Constant.WEBSITE_MAP_SECOND.get(t));
+            }*/
             ArrayList<String> targetSite = new ArrayList<>();
             List<Topic> wangyeList = new ArrayList<>();
             if (Constant.WEBSITE_MAP.keySet().contains(lan)){
                 targetSite = Constant.WEBSITE_MAP.get(lan);  // 拿到对应文件下的网址集合
                 Constant.LANG_NAME = lan;
                 CountDownLatch countDownLatch = new CountDownLatch(targetSite.size());  // 建立倒计时
-                for (String website : targetSite) {
-                    List<Topic> finalWangyeList = wangyeList;
+
+/*
+                BingWebSearch_gaoji bingWebSearch = new BingWebSearch_gaoji();
+                wangyeList = bingWebSearch.search_sites(false, targetSite,input);
+                System.out.println("网址循环线程名称"+Thread.currentThread().getName()+"取回的内容条数是:"+wangyeList.size());
+*/
+                List<Topic> finalWangyeList = wangyeList;
+                final boolean[] flag_1 = {true};
+                for (String site:targetSite) {
                     executorService.submit(new Runnable() {
                         @Override
                         public void run() {
                             List<Topic> tempTopicList = new ArrayList<>();
                             try {
                                 BingWebSearch_gaoji bingWebSearch = new BingWebSearch_gaoji();
-                                tempTopicList = bingWebSearch.search(false, website,input);
-                                System.out.println("网址循环线程名称："+website+"||"+Thread.currentThread().getName()+"取回的内容条数是:"+tempTopicList.size());
-                               /* for (Topic topic : tempTopicList) {
-                                    System.out.println("topic  : " +topic.getTitle()+"|"+topic.getContent()+"|"+topic.getUrl());
-                                }*/
-                                /*synchronized (this){
-                                    for (Topic topic:tempTopicList) {
-                                        wangyeList.add(topic);
-                                    }
-                                }*/
+                                tempTopicList = bingWebSearch.search_oneSite(false, site,input);
+                                System.out.println("网址循环线程名称"+Thread.currentThread().getName()+"取回的内容条数是:"+tempTopicList.size());
                             } catch (Exception e) {
+                                flag_1[0] = false;
                                 e.printStackTrace();
+                                finalResult[0] =  Result.fail("bing搜索程序出现问题");
                             }
                             synchronized (this){
                                 for (Topic topic:tempTopicList) {
@@ -98,184 +98,61 @@ public class OutputController {
                     });
                 }
                 countDownLatch.await(); //等待执行完毕
+
+                if (flag_1[0] && wangyeList.size()>0) {  // bing搜索没有抛出异常,并且拿到了结果。
+//                    System.out.println("----bing搜索没有抛出异常,并且拿到了结果----");
+                    int total = wangyeList.size();
+                    finalResult[0] =Result.success(ResultCodeEnum.SUCCESS,wangyeList,total);
+                }
+                if (wangyeList.size()<=0) { //反正就是没有拿到结果。去第二层寻找。
+                    System.out.println("======================进入社评搜索界面=================");
+                    targetSite = Constant.WEBSITE_MAP_SECOND.get(lan);
+                    CountDownLatch countDownLatch2 = new CountDownLatch(targetSite.size());  // 建立倒计时
+                    final boolean[] flag_2 = {true};
+                    for (String site:targetSite) {
+                        executorService.submit(new Runnable() {
+                            @Override
+                            public void run() {
+                                List<Topic> tempTopicList = new ArrayList<>();
+                                try {
+                                    BingWebSearch_gaoji bingWebSearch = new BingWebSearch_gaoji();
+                                    tempTopicList = bingWebSearch.search_oneSite(false, site,input);
+                                    System.out.println("网址循环线程名称"+Thread.currentThread().getName()+"取回的内容条数是:"+tempTopicList.size());
+                                } catch (Exception e) {
+                                    flag_2[0] = false;
+                                    e.printStackTrace();
+                                    finalResult[0] =  Result.fail("bing搜索程序出现问题");
+                                }
+                                synchronized (this){
+                                    for (Topic topic:tempTopicList) {
+                                        finalWangyeList.add(topic);
+                                    }
+                                }
+                                countDownLatch2.countDown(); //减一次
+                            }
+                        });
+                    }
+                    countDownLatch2.await(); //等待执行完毕
+                    if (flag_2[0]) {
+                        int total = wangyeList.size();
+                        finalResult[0] =Result.success(ResultCodeEnum.SUCCESS,wangyeList,total);
+                    }
+                }
                 executorService.shutdown(); // 关闭线程池
-                int total = wangyeList.size();
-                finalResult=Result.success(ResultCodeEnum.SUCCESS,wangyeList,total);
+
             }else {  // 输入的语言是不对的。那么直接返回空数据，不进行任何搜索
                 wangyeList= null;
-                finalResult=Result.success(ResultCodeEnum.SUCCESS,wangyeList,0);
+//                finalResult[0] =Result.success(ResultCodeEnum.SUCCESS,wangyeList,0);
+                finalResult[0] = Result.fail("输入语言两位代码错误");
                 executorService.shutdown();
             }
         } catch (Exception e) {
             e.printStackTrace();
-            finalResult = Result.fail();
+            finalResult[0] = Result.fail("获取结果失败");
             executorService.shutdown();
         }
         System.out.println("============本次处理完成============");
-        return finalResult;
-    }
-
-    //    @Autowired OutputDao dao;
-    @ResponseBody
-    @RequestMapping(value = "/search_v1/{bookname}/{author}/{publication}/{lan}")
-    public Result getResult(@PathVariable("bookname")String bookname,@PathVariable("author")String author,@PathVariable("publication")String publication,@PathVariable("lan")String lan){
-//        InputService inputService = new InputService();
-        ExecutorService executorService = Executors.newFixedThreadPool(10);
-        InitConfService initConfService = new InitConfService();
-        Result finalResult = null;
-//        String website = "https://www.cbsnews.com/";
-//        Input input1 = new Input("神聖幾何学マルセイユ タロット ミレニアムエディション入門書","ウィルフリード・ウドワン","サンジェルマン出版","日本","en");
-//        Input input1 = new Input("Where the Crawdads Sing","Delia Owens","G.P. Putnam's Sons","美国","en");
-        Input input = new Input(bookname,author,publication,"zhanweizhuanyong",lan);
-        try {
-//          1. 把resources/website/下的所有的语言文件读入进来。
-            System.out.println("开始读入初始化配置 ··· ");
-            initConfService.initConf();
-            System.out.println("初始化配置完成");
-
-            ArrayList<String> targetSite = new ArrayList<>();
-            List<Topic> wangyeList = new ArrayList<>();
-            if (Constant.WEBSITE_MAP.keySet().contains(lan)){
-                targetSite = Constant.WEBSITE_MAP.get(lan);
-                Constant.LANG_NAME = lan;
-                CountDownLatch countDownLatch = new CountDownLatch(targetSite.size());  // 建立倒计时
-                for (String website : targetSite) {
-                    List<Topic> finalWangyeList = wangyeList;
-                    executorService.submit(new Runnable() {
-                        @Override
-                        public void run() {
-                            List<Topic> tempTopicList = new ArrayList<>();
-                            try {
-                                BingWebSearch_gaoji bingWebSearch = new BingWebSearch_gaoji();
-                                tempTopicList = bingWebSearch.search(false, website,input);
-                                System.out.println("网址循环线程名称："+website+"||"+Thread.currentThread().getName()+"取回的内容条数是:"+tempTopicList.size());
-                               /* for (Topic topic : tempTopicList) {
-                                    System.out.println("topic  : " +topic.getTitle()+"|"+topic.getContent()+"|"+topic.getUrl());
-                                }*/
-                                /*synchronized (this){
-                                    for (Topic topic:tempTopicList) {
-                                        wangyeList.add(topic);
-                                    }
-                                }*/
-                            } catch (Exception e) {
-                                e.printStackTrace();
-                            }
-                            synchronized (this){
-                                for (Topic topic:tempTopicList) {
-                                    finalWangyeList.add(topic);
-                                }
-                            }
-                            countDownLatch.countDown(); //减一次
-                        }
-                    });
-                }
-                countDownLatch.await(); //等待执行完毕
-                executorService.shutdown(); // 关闭线程池
-                int total = wangyeList.size();
-                finalResult=Result.success(ResultCodeEnum.SUCCESS,wangyeList,total);
-            }else {  // 返回空，不进行任何搜索
-                wangyeList= null;
-                finalResult=Result.success(ResultCodeEnum.SUCCESS,wangyeList,0);
-                executorService.shutdown();
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-            finalResult = Result.fail();
-            executorService.shutdown();
-        }
-        System.out.println("============本次处理完成============");
-        return finalResult;
-    }
-
-
-    @ResponseBody
-    @RequestMapping(value = "/testgj/{lan}/{keyword}/{site}")
-    public Result getResultFromSite(@PathVariable("lan")String lan, @PathVariable("keyword")String keyword, @PathVariable("site")String site, Model model) {
-        ExecutorService threadPool = Executors.newFixedThreadPool(10);
-        InputService inputService = new InputService();
-        InitConfService initConfService = new InitConfService();
-
-        // 初始化配置
-        System.out.println("开始初始化配置......");
-        Result finalResult = null;
-        try {
-//            读入初始化配置
-            initConfService.initConf();
-            //            # 语言(只能写一种语言)：中简、英语、法语、俄语、德语、韩语、日语
-            Constant.LANG_NAME = lan;
-            // 构造一个输入用例测试输出
-            Input input1 = new Input();
-//            input1.setNum("5");
-//            input1.setName(keyword);
-
-            BingWebSearch_gaoji bingWebSearch = new BingWebSearch_gaoji();
-            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-//            System.out.println(sdf.format(new Date()) + ">>>============================= " + input1.getName() + " start =============================== ");
-            List<Topic> wangyeList = bingWebSearch.search(false, site,input1);
-//            System.out.println(sdf.format(new Date()) + "<<<============================= " + input1.getName() + " end =============================== ");
-
-            int total = wangyeList.size();  // 一共搜索到的条数
-            finalResult = Result.success(ResultCodeEnum.SUCCESS,wangyeList,total);
-
-        } catch (Exception e) {
-            e.printStackTrace();
-            finalResult = Result.fail();
-        }
-//        System.out.println("初始化配置完成");
-        return finalResult;
-    }
-
-//    输入语言名称，根据语言进行检索
-    @ResponseBody
-    @RequestMapping(value = "/knowledge/analysis/institution/technicalList/{lan}",method = RequestMethod.GET)
-    public List<Output> fromLanGetOutput(@PathVariable("lan")String lan, Model model) throws SQLException {
-        OutputDao outputDao = new OutputDao();
-        List<Output> resultList = outputDao.queryByLan(lan);
-//        Result successResult = Result.success(resultList);
-//        if (resultList.)
-        model.addAttribute("successResult",resultList);
-        return resultList;
-    }
-
-    @ResponseBody
-    @RequestMapping(value = "/test/{id}/{lan}/{keyword}",method = RequestMethod.GET)
-    public Result getOutputByRest(@PathVariable("id")String id,@PathVariable("lan")String lan,@PathVariable("keyword")String keyword,Model model)  {
-        ExecutorService threadPool = Executors.newFixedThreadPool(10);
-        InputService inputService = new InputService();
-        InitConfService initConfService = new InitConfService();
-
-        // 初始化配置
-        System.out.println("开始初始化配置......");
-        Result finalResult = null;
-        try {
-//            读入初始化配置
-            initConfService.initConf();
-            //            # 语言(只能写一种语言)：中简、英语、法语、俄语、德语、韩语、日语
-            Constant.LANG_NAME = lan;
-            // 构造一个输入用例测试输出
-            Input input1 = new Input();
-//            input1.setNum("5");
-/*
-            input1.setName(keyword);
-
-            BingWebSearch bingWebSearch = new BingWebSearch();
-            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-            System.out.println(sdf.format(new Date()) + ">>>============================= " + input1.getName() + " start =============================== ");
-            List<Topic> wangyeList = bingWebSearch.search(false, input1);
-            System.out.println(sdf.format(new Date()) + "<<<============================= " + input1.getName() + " end =============================== ");
-*/
-
-/*
-            int total = wangyeList.size();  // 一共搜索到的条数
-            finalResult = Result.success(ResultCodeEnum.SUCCESS,wangyeList,total);
-*/
-
-        } catch (Exception e) {
-            e.printStackTrace();
-            finalResult = Result.fail();
-        }
-//        System.out.println("初始化配置完成");
-        return finalResult;
+        return finalResult[0];
     }
 
 }

@@ -73,6 +73,19 @@ public class InitConfService {
             }
             Constant.WEBSITE_MAP.put("en",webSiteArr2);
 
+            InputStream en_second = this.getClass().getClassLoader().getResourceAsStream("website/second/en.txt");
+            String content2_second = FileUtil.readFileByStream(en_second);
+//                System.out.println(content);
+            String[] websiteS2_second = content2_second.split("\n");
+            ArrayList<String> webSiteArr2_second = new ArrayList<>();
+            for (String website: websiteS2_second) {
+                if (website.trim().startsWith("#")) {
+                    continue;
+                }
+                webSiteArr2_second.add(website.trim());
+            }
+            Constant.WEBSITE_MAP_SECOND.put("en",webSiteArr2_second);
+
             InputStream jp = this.getClass().getClassLoader().getResourceAsStream("website/jp.txt");
             String content3 = FileUtil.readFileByStream(jp);
 //                System.out.println(content);
@@ -86,6 +99,19 @@ public class InitConfService {
             }
             Constant.WEBSITE_MAP.put("jp",webSiteArr3);
 
+            InputStream jp_second = this.getClass().getClassLoader().getResourceAsStream("website/second/jp.txt");
+            String content3_second = FileUtil.readFileByStream(jp_second);
+//                System.out.println(content);
+            String[] websiteS3_second = content3_second.split("\n");
+            ArrayList<String> webSiteArr3_second = new ArrayList<>();
+            for (String website: websiteS3_second) {
+                if (website.trim().startsWith("#")) {
+                    continue;
+                }
+                webSiteArr3_second.add(website.trim());
+            }
+            Constant.WEBSITE_MAP_SECOND.put("jp",webSiteArr3_second);
+
             InputStream ko = this.getClass().getClassLoader().getResourceAsStream("website/ko.txt");
             String content4 = FileUtil.readFileByStream(ko);
 //                System.out.println(content);
@@ -98,6 +124,19 @@ public class InitConfService {
                 webSiteArr4.add(website.trim());
             }
             Constant.WEBSITE_MAP.put("ko",webSiteArr4);
+
+            InputStream ko_second = this.getClass().getClassLoader().getResourceAsStream("website/second/ko.txt");
+            String content4_second = FileUtil.readFileByStream(ko_second);
+//                System.out.println(content);
+            String[] websiteS4_second = content4_second.split("\n");
+            ArrayList<String> webSiteArr4_second = new ArrayList<>();
+            for (String website: websiteS4_second) {
+                if (website.trim().startsWith("#")) {
+                    continue;
+                }
+                webSiteArr4_second.add(website.trim());
+            }
+            Constant.WEBSITE_MAP_SECOND.put("ko",webSiteArr4_second);
 
             InputStream am = this.getClass().getClassLoader().getResourceAsStream("website/am.txt");
             String content5 = FileUtil.readFileByStream(am);
